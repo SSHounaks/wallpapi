@@ -1,0 +1,8 @@
+{
+  "uuid": "wallpapi@shalnark",
+  "name": "Wallpapi",
+  "description": "Omarchy-style wallpaper picker: browse a folder of wallpapers as a full-screen thumbnail grid and click (or press Enter) to set your background.",
+  "shell-version": ["50"],
+  "version-name": "1.0.0",
+  "settings-schema": "org.gnome.shell.extensions.wallpapi"
+}

@@ -1,0 +1,57 @@
+.wallpapi-overlay {
+  background-color: rgba(9, 9, 14, 0.62);
+}
+
+.wallpapi-header {
+  padding: 26px 40px 10px 40px;
+  spacing: 4px;
+}
+
+.wallpapi-title {
+  font-size: 20pt;
+  font-weight: bold;
+  color: #ffffff;
+}
+
+.wallpapi-folder {
+  font-size: 11pt;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.wallpapi-slice {
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  border-radius: 14px;
+  background-color: rgba(20, 20, 26, 0.85);
+}
+
+.wallpapi-slice-selected {
+  border: 3px solid #3584e4;
+  background-color: rgba(53, 132, 228, 0.20);
+  box-shadow: 0 0 24px rgba(53, 132, 228, 0.45);
+}
+
+.wallpapi-slice-dim {
+  border-radius: 12px;
+  background-color: rgba(0, 0, 0, 0.45);
+}
+
+.wallpapi-bottom {
+  spacing: 6px;
+  padding: 8px 40px 20px 40px;
+}
+
+.wallpapi-current {
+  font-size: 13pt;
+  font-weight: bold;
+  color: #ffffff;
+}
+
+.wallpapi-hint {
+  font-size: 10pt;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.wallpapi-empty {
+  font-size: 14pt;
+  color: rgba(255, 255, 255, 0.75);
+}
