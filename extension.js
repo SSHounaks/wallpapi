@@ -6,6 +6,7 @@ import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 import GdkPixbuf from 'gi://GdkPixbuf';
 import Cogl from 'gi://Cogl';
+import Graphene from 'gi://Graphene';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
@@ -14,11 +15,14 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 import * as lib from './lib.js';
 
-const EXPECTED_WIDTH = 560;
 const EXPECTED_HEIGHT = 340;
+const SELECTED_EXTRA_HEIGHT = 150;
+const SELECTED_EXTRA_WIDTH = 200;
+const NEAR_STEP_PULL = 20;
 const SLICE_WIDTH = 110;
 const SLICE_SPACING = 12;
 const VISIBLE_RANGE = 4;
+const SLICE_SKEW = 0.12;
 const LOAD_RANGE = 6;
 const HEADER_HEIGHT = 120;
 const BOTTOM_HEIGHT = 96;
@@ -292,18 +296,12 @@ export default class WallpapiExtension extends Extension {
 
         const imgActor = new Clutter.Actor();
         const content = St.ImageContent.new_with_preferred_size(
-            EXPECTED_WIDTH, EXPECTED_HEIGHT);
+            (SLICE_WIDTH + SELECTED_EXTRA_WIDTH) * 3,
+            EXPECTED_HEIGHT + SELECTED_EXTRA_HEIGHT);
         imgActor.content = content;
         slice.add_child(imgActor);
 
-        const dim = new St.Widget({
-            style_class: 'wallpapi-slice-dim',
-            reactive: false,
-        });
-        slice.add_child(dim);
-
         this._sliceImgs.set(index, imgActor);
-        this._sliceDims.set(index, dim);
         return slice;
     }
 
@@ -317,7 +315,6 @@ export default class WallpapiExtension extends Extension {
         const areaH = height - HEADER_HEIGHT - BOTTOM_HEIGHT;
         const cx = width / 2;
         const cy = areaY + areaH / 2;
-        const step = SLICE_WIDTH + SLICE_SPACING;
 
         for (let i = 0; i < this._items.length; i++) {
             const slice = this._sliceActors[i];
@@ -331,80 +328,105 @@ export default class WallpapiExtension extends Extension {
             }
             slice.visible = true;
 
-            let x;
-            let y;
-            let w;
-            let h;
-
-            if (rel === 0) {
-                w = EXPECTED_WIDTH;
-                h = EXPECTED_HEIGHT;
-                x = cx - w / 2;
-                y = cy - h / 2;
-            } else {
-                const side = rel > 0 ? 1 : -1;
-                const k = Math.abs(rel);
-                w = SLICE_WIDTH;
-                h = EXPECTED_HEIGHT;
-                if (side > 0)
-                    x = cx + EXPECTED_WIDTH / 2 + SLICE_SPACING + (k - 1) * step;
-                else
-                    x = cx - EXPECTED_WIDTH / 2 - SLICE_SPACING - (k - 1) * step - SLICE_WIDTH;
-                y = cy - h / 2;
-            }
+            const selected = rel === 0;
+            const w = selected
+                ? SLICE_WIDTH + SELECTED_EXTRA_WIDTH
+                : SLICE_WIDTH;
+            const h = selected
+                ? EXPECTED_HEIGHT + SELECTED_EXTRA_HEIGHT
+                : EXPECTED_HEIGHT;
+            const x = cx + this._slotOffset(rel) - w / 2;
+            const y = cy - h / 2;
 
             slice.set_position(x, y);
             slice.set_size(w, h);
-            this._applySliceVisual(i);
+            this._applySliceVisual(i, w, h);
 
-            if (rel === 0)
+            if (selected)
                 this._carouselArea.set_child_above_sibling(slice, null);
         }
     }
 
-    _applySliceVisual(index) {
+    _slotOffset(rel) {
+        if (rel === 0)
+            return 0;
+
+        const sign = rel > 0 ? 1 : -1;
+        const dist = Math.abs(rel);
+
+        const pad = 6;
+        const focalH = EXPECTED_HEIGHT + SELECTED_EXTRA_HEIGHT - 2 * pad;
+        const nbhH = EXPECTED_HEIGHT - 2 * pad;
+        const bound = (Math.min(focalH, nbhH) / 2) - 1;
+
+        const focalHalf = (SLICE_WIDTH + SELECTED_EXTRA_WIDTH) / 2
+            + SLICE_SKEW * bound;
+        const nbhHalf = SLICE_WIDTH / 2 + SLICE_SKEW * bound;
+        const nearStep = Math.round(
+            focalHalf + nbhHalf + SLICE_SPACING - NEAR_STEP_PULL);
+
+        if (dist === 1)
+            return sign * nearStep;
+        return sign * (nearStep + (dist - 1) * (SLICE_WIDTH + SLICE_SPACING));
+    }
+
+    _applySliceVisual(index, slotW, slotH) {
         const slice = this._sliceActors[index];
         const imgActor = this._sliceImgs.get(index);
-        const dim = this._sliceDims.get(index);
         if (!slice || !imgActor)
             return;
 
         const selected = index === this._focusIndex;
-        slice.style_class = selected ? 'wallpapi-slice wallpapi-slice-selected' : 'wallpapi-slice';
-        if (dim)
-            dim.visible = !selected;
-
-        const w = selected ? EXPECTED_WIDTH : SLICE_WIDTH;
-        const h = EXPECTED_HEIGHT;
-        if (dim)
-            dim.set_size(w, h);
+        slice.style_class = selected
+            ? 'wallpapi-slice wallpapi-slice-selected'
+            : 'wallpapi-slice';
 
         const pixbuf = this._pixbufs.get(index);
         if (!pixbuf || !this._coglContext)
             return;
 
         const pad = 6;
-        const availW = w - 2 * pad;
-        const availH = h - 2 * pad;
-        const scale = Math.min(availW / pixbuf.get_width(), availH / pixbuf.get_height());
-        const iw = Math.max(1, Math.floor(pixbuf.get_width() * scale));
-        const ih = Math.max(1, Math.floor(pixbuf.get_height() * scale));
+        const availW = Math.max(1, slotW);
+        const availH = Math.max(1, slotH - 2 * pad);
+        const scale = Math.max(availW / pixbuf.get_width(),
+            availH / pixbuf.get_height());
+        const iw = Math.max(1, Math.round(pixbuf.get_width() * scale));
+        const ih = Math.max(1, Math.round(pixbuf.get_height() * scale));
 
-        const scaled = pixbuf.scale_simple(iw, ih, GdkPixbuf.InterpType.BILINEAR);
-        if (!scaled)
-            return;
+        let source = pixbuf;
+        if (iw !== pixbuf.get_width() || ih !== pixbuf.get_height()) {
+            source = pixbuf.scale_simple(iw, ih, GdkPixbuf.InterpType.BILINEAR);
+            if (!source)
+                return;
+        }
 
-        const fmt = scaled.get_has_alpha()
-            ? Cogl.PixelFormat.RGBA_8888
-            : Cogl.PixelFormat.RGB_888;
-        const bytes = new GLib.Bytes(scaled.get_pixels());
+        let cropped = source;
+        let cw = iw;
+        let ch = ih;
+        if (iw > availW || ih > availH) {
+            const ox = Math.max(0, Math.floor((iw - availW) / 2));
+            const oy = Math.max(0, Math.floor((ih - availH) / 2));
+            cw = Math.min(availW, iw - ox);
+            ch = Math.min(availH, ih - oy);
+            cropped = source.new_subpixbuf(ox, oy, cw, ch);
+        }
 
+        const border = selected
+            ? [53, 132, 228, 255]
+            : [255, 255, 255, 90];
+        const sheared = lib.shearPixbuf(cropped, SLICE_SKEW, border);
+        const sw = sheared.get_width();
+
+        const bytes = new GLib.Bytes(sheared.get_pixels());
         imgActor.content.set_bytes(
-            this._coglContext, bytes, fmt,
-            scaled.get_width(), scaled.get_height(), scaled.get_rowstride());
+            this._coglContext, bytes,
+            Cogl.PixelFormat.RGBA_8888,
+            sw, sheared.get_height(), sheared.get_rowstride());
 
-        imgActor.set_size(iw, ih);
-        imgActor.set_position((w - iw) / 2, (h - ih) / 2);
+        imgActor.set_size(sw, sheared.get_height());
+        imgActor.set_position(
+            Math.round((slotW - sw) / 2), pad);
+        imgActor.opacity = selected ? 255 : 170;
     }
 
     _setFocus(index) {
@@ -491,11 +513,16 @@ export default class WallpapiExtension extends Extension {
     _loadThumbnail(srcPath, index) {
         try {
             const pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
-                srcPath, EXPECTED_WIDTH * 2, EXPECTED_HEIGHT * 2, true);
+                srcPath, (SLICE_WIDTH + SELECTED_EXTRA_WIDTH) * 4,
+                (EXPECTED_HEIGHT + SELECTED_EXTRA_HEIGHT) * 2, true);
             if (!pixbuf)
                 return;
             this._pixbufs.set(index, pixbuf);
-            this._applySliceVisual(index);
+            const slice = this._sliceActors[index];
+            if (slice)
+                this._applySliceVisual(index,
+                    slice.width ? slice.width : SLICE_WIDTH,
+                    slice.height ? slice.height : EXPECTED_HEIGHT);
         } catch (e) {
             lib.logError(e);
         }

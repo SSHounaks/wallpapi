@@ -1,5 +1,6 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import GdkPixbuf from 'gi://GdkPixbuf';
 
 export const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'avif'];
 
@@ -156,4 +157,42 @@ export function logError(e) {
     } catch (err) {
     }
     console.warn(`Wallpapi: ${message}`);
+}
+
+export function shearPixbuf(source, skew, border = null) {
+    const w = source.get_width();
+    const h = source.get_height();
+    const shiftMax = Math.max(1, Math.round(Math.abs(skew) * h));
+    const outW = w + shiftMax * 2;
+    const dest = GdkPixbuf.Pixbuf.new(
+        GdkPixbuf.Colorspace.RGB, true, 8, outW, h);
+
+    const cx = outW / 2;
+    const x0 = (y) => Math.round(cx - w / 2 + skew * (y - h / 2));
+
+    for (let y = 0; y < h; y++) {
+        source.copy_area(0, y, w, 1, dest, x0(y), y);
+    }
+
+    if (border !== null) {
+        const [br, bg, bb, ba] = border;
+        const rgb = br * 16777216 + bg * 65536 + bb * 256 + (ba & 0xff);
+        const dot = GdkPixbuf.Pixbuf.new(
+            GdkPixbuf.Colorspace.RGB, true, 8, 1, 1);
+        dot.fill(rgb);
+        for (let y = 0; y < h; y++) {
+            const xl = x0(y) - 1;
+            const xr = x0(y) + w;
+            if (xl >= 0)
+                dot.copy_area(0, 0, 1, 1, dest, xl, y);
+            if (xr < outW)
+                dot.copy_area(0, 0, 1, 1, dest, xr, y);
+        }
+        const horiz = GdkPixbuf.Pixbuf.new(
+            GdkPixbuf.Colorspace.RGB, true, 8, w + 2, 2);
+        horiz.fill(rgb);
+        horiz.copy_area(0, 0, w + 2, 2, dest, x0(0) - 1, 0);
+        horiz.copy_area(0, 0, w + 2, 2, dest, x0(h - 1) - 1, h - 2);
+    }
+    return dest;
 }

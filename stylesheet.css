@@ -19,20 +19,11 @@
 }
 
 .wallpapi-slice {
-  border: 2px solid rgba(255, 255, 255, 0.22);
-  border-radius: 14px;
-  background-color: rgba(20, 20, 26, 0.85);
+  background-color: transparent;
 }
 
 .wallpapi-slice-selected {
-  border: 3px solid #3584e4;
-  background-color: rgba(53, 132, 228, 0.20);
-  box-shadow: 0 0 24px rgba(53, 132, 228, 0.45);
-}
-
-.wallpapi-slice-dim {
-  border-radius: 12px;
-  background-color: rgba(0, 0, 0, 0.45);
+  background-color: transparent;
 }
 
 .wallpapi-bottom {
