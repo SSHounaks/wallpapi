@@ -47,6 +47,7 @@ export default class WallpapiExtension extends Extension {
         this._committed = false;
         this._fileSubMonitors = [];
         this._fsDebounceId = 0;
+        this._buttonPressId = null;
 
         try {
             this._coglContext = global.stage.context.get_backend().get_cogl_context();
@@ -91,6 +92,9 @@ export default class WallpapiExtension extends Extension {
         }
 
         if (this._button) {
+            if (this._buttonPressId)
+                this._button.disconnect(this._buttonPressId);
+            this._buttonPressId = null;
             this._button.destroy();
             this._button = null;
         }
@@ -105,7 +109,7 @@ export default class WallpapiExtension extends Extension {
             fallback_icon_name: 'image-x-generic-symbolic',
             style_class: 'system-status-icon',
         }));
-        this._button.connect('button-press-event', () => {
+        this._buttonPressId = this._button.connect('button-press-event', () => {
             this._toggleOverlay();
             return Clutter.EVENT_STOP;
         });
@@ -147,7 +151,7 @@ export default class WallpapiExtension extends Extension {
                     Gio.FileMonitorFlags.NONE, null);
                 if (!mon)
                     continue;
-                mon.connect('changed', (m, file, other, ev) => {
+                const id = mon.connect('changed', (m, file, other, ev) => {
                     if (ev === Gio.FileMonitorEvent.CHANGED ||
                         ev === Gio.FileMonitorEvent.ATTRIBUTE_CHANGED ||
                         ev === Gio.FileMonitorEvent.PRE_UNMOUNT ||
@@ -155,7 +159,7 @@ export default class WallpapiExtension extends Extension {
                         return;
                     this._scheduleFolderRefresh();
                 });
-                this._fileSubMonitors.push(mon);
+                this._fileSubMonitors.push({mon, id});
             } catch (e) {
                 lib.logError(e);
             }
@@ -177,8 +181,10 @@ export default class WallpapiExtension extends Extension {
     }
 
     _teardownFileMonitor() {
-        for (const mon of this._fileSubMonitors) {
+        for (const {mon, id} of this._fileSubMonitors) {
             try {
+                if (id)
+                    mon.disconnect(id);
                 mon.cancel();
             } catch (e) {
             }
@@ -315,12 +321,26 @@ export default class WallpapiExtension extends Extension {
             this._grab = null;
         }
 
-        this._overlay.destroy();
-        this._overlay = null;
-        this._carouselArea = null;
-        this._bottomBar = null;
-        this._folderLabel = null;
-        this._currentLabel = null;
+        if (this._carouselArea) {
+            this._carouselArea.destroy();
+            this._carouselArea = null;
+        }
+        if (this._currentLabel) {
+            this._currentLabel.destroy();
+            this._currentLabel = null;
+        }
+        if (this._bottomBar) {
+            this._bottomBar.destroy();
+            this._bottomBar = null;
+        }
+        if (this._folderLabel) {
+            this._folderLabel.destroy();
+            this._folderLabel = null;
+        }
+        if (this._overlay) {
+            this._overlay.destroy();
+            this._overlay = null;
+        }
         this._items = [];
         this._sliceActors = [];
         this._sliceImgs.clear();
