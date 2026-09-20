@@ -218,6 +218,7 @@ export default class WallpapiExtension extends Extension {
         this._sliceDims.clear();
         this._pixbufs.clear();
         this._focusIndex = 0;
+        this._scrollAccum = {x: 0, y: 0};
 
         const monitor = Main.layoutManager.primaryMonitor;
         const overlay = new St.Widget({
@@ -240,6 +241,8 @@ export default class WallpapiExtension extends Extension {
         });
         overlay.connect('key-press-event', (actor, event) =>
             this._onKeyPress(event));
+        overlay.connect('scroll-event', (actor, event) =>
+            this._onScrollEvent(event));
 
         const header = new St.BoxLayout({
             vertical: true,
@@ -271,7 +274,7 @@ export default class WallpapiExtension extends Extension {
         });
         this._bottomBar.add_child(this._currentLabel);
         this._bottomBar.add_child(new St.Label({
-            text: '← → choose  ·  Enter set  ·  Esc close',
+            text: 'scroll / ← → choose  ·  Enter set  ·  Esc close',
             style_class: 'wallpapi-hint',
         }));
         overlay.add_child(this._bottomBar);
@@ -315,6 +318,7 @@ export default class WallpapiExtension extends Extension {
         }
         this._originalWallpaper = null;
         this._committed = false;
+        this._scrollAccum = null;
 
         if (this._grab) {
             Main.popModal(this._grab);
@@ -609,6 +613,39 @@ export default class WallpapiExtension extends Extension {
         this._setFocus(index);
     }
 
+    _onScrollEvent(event) {
+        const dir = event.get_scroll_direction();
+        if (dir === Clutter.ScrollDirection.UP) {
+            this._moveFocus(-1);
+            return Clutter.EVENT_STOP;
+        }
+        if (dir === Clutter.ScrollDirection.DOWN) {
+            this._moveFocus(1);
+            return Clutter.EVENT_STOP;
+        }
+        if (dir === Clutter.ScrollDirection.LEFT) {
+            this._moveFocus(-1);
+            return Clutter.EVENT_STOP;
+        }
+        if (dir === Clutter.ScrollDirection.RIGHT) {
+            this._moveFocus(1);
+            return Clutter.EVENT_STOP;
+        }
+        if (dir === Clutter.ScrollDirection.SMOOTH) {
+            const delta = event.get_scroll_delta();
+            this._scrollAccum.y += delta.y ?? delta[1] ?? 0;
+            if (this._scrollAccum.y >= 1) {
+                this._scrollAccum.y -= 1;
+                this._moveFocus(1);
+            } else if (this._scrollAccum.y <= -1) {
+                this._scrollAccum.y += 1;
+                this._moveFocus(-1);
+            }
+            return Clutter.EVENT_STOP;
+        }
+        return Clutter.EVENT_PROPAGATE;
+    }
+
     _onKeyPress(event) {
         const symbol = event.get_key_symbol();
         if (symbol === Clutter.KEY_Escape) {
@@ -671,9 +708,9 @@ export default class WallpapiExtension extends Extension {
 
     _loadThumbnail(srcPath, index) {
         try {
-            const pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
+            const pixbuf = lib.loadThumbnail(
                 srcPath, (SLICE_WIDTH + SELECTED_EXTRA_WIDTH) * 4,
-                (EXPECTED_HEIGHT + SELECTED_EXTRA_HEIGHT) * 2, true);
+                (EXPECTED_HEIGHT + SELECTED_EXTRA_HEIGHT) * 2);
             if (!pixbuf)
                 return;
             this._pixbufs.set(index, pixbuf);

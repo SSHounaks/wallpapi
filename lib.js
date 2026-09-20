@@ -112,6 +112,74 @@ export function validateFolder(folder) {
     return {valid: true, count, reason: 'ok'};
 }
 
+function thumbnailCacheDir() {
+    const override = GLib.getenv('WALLPAPI_CACHE');
+    if (override)
+        return override;
+    return GLib.build_filenamev(
+        [GLib.get_user_cache_dir(), 'wallpapi', 'thumbnails']);
+}
+
+export function thumbnailCachePath(srcPath, maxW, maxH) {
+    try {
+        const file = Gio.File.new_for_path(srcPath);
+        const info = file.query_info('standard::size,time::modified',
+            Gio.FileQueryInfoFlags.NONE, null);
+        if (!info)
+            return null;
+        const size = info.get_size();
+        const t = info.get_modification_time();
+        const key = `${srcPath}|${t.tv_sec}-${t.tv_usec}|${size}|${maxW}x${maxH}`;
+        let hash = 0x811c9dc5;
+        for (let i = 0; i < key.length; i++) {
+            hash ^= key.charCodeAt(i);
+            hash = Math.imul(hash, 0x01000193);
+        }
+        const digest = (hash >>> 0).toString(16).padStart(8, '0');
+        return GLib.build_filenamev([
+            thumbnailCacheDir(), `${digest}.img`]);
+    } catch (e) {
+        return null;
+    }
+}
+
+export function loadThumbnail(srcPath, maxW, maxH) {
+    const wanted = thumbnailCachePath(srcPath, maxW, maxH);
+    if (wanted) {
+        try {
+            if (Gio.File.new_for_path(wanted).query_exists(null)) {
+                const hit = GdkPixbuf.Pixbuf.new_from_file(wanted);
+                if (hit)
+                    return hit;
+            }
+        } catch (e) {
+        }
+    }
+
+    try {
+        const pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
+            srcPath, maxW, maxH, true);
+        if (!pixbuf)
+            return null;
+        try {
+            if (wanted) {
+                GLib.mkdir_with_parents(
+                    GLib.path_get_dirname(wanted), 0o755);
+                const [ok, data] = pixbuf.get_has_alpha()
+                    ? pixbuf.save_to_bufferv('png', [], [])
+                    : pixbuf.save_to_bufferv('jpeg', ['quality'], ['88']);
+                if (ok)
+                    GLib.file_set_contents(wanted, data);
+            }
+        } catch (e) {
+        }
+        return pixbuf;
+    } catch (e) {
+        logError(e);
+        return null;
+    }
+}
+
 export function setWallpaper(path, opts = {}) {
     if (!Gio.File.new_for_path(path).query_exists(null))
         return false;

@@ -8,6 +8,8 @@ const TMP = `${GLib.get_tmp_dir()}/wallpapi-test-${Date.now()}`;
 const ENC = new TextEncoder();
 const X = ENC.encode('x');
 
+GLib.setenv('WALLPAPI_CACHE', `${TMP}/cache`, true);
+
 function writeTmp(rel) {
     const f = Gio.File.new_for_path(`${TMP}/${rel}`);
     try {
@@ -133,6 +135,57 @@ describe('setWallpaper commit contract', () => {
         } finally {
             Gio.Settings.sync = origSync;
         }
+    });
+});
+
+describe('thumbnail cache', () => {
+    const w = 480;
+    const h = 320;
+    const src = `${TMP}/thumb-src.png`;
+
+    function writeSrc() {
+        const [ok, bytes] = solidPixbuf(w, h).save_to_bufferv('png', [], []);
+        assert(ok, 'png encode');
+        Gio.File.new_for_path(src).replace_contents(
+            bytes, null, false,
+            Gio.FileCreateFlags.REPLACE_DESTINATION, null);
+    }
+
+    it('decodes at most the requested bounds with aspect kept', () => {
+        writeSrc();
+        const t = lib.loadThumbnail(src, 300, 200);
+        assert(t, 'thumb decoded');
+        assert(t.get_width() <= 300 && t.get_height() <= 200,
+            `bounds ${t.get_width()}x${t.get_height()}`);
+        eq([t.get_width(), t.get_height()].includes(300) ||
+            [t.get_width(), t.get_height()].includes(200), true, 'touches a bound');
+    });
+
+    it('writes a cache entry and reuses it', () => {
+        const path = lib.thumbnailCachePath(src, 300, 200);
+        assert(path, 'cache path computed');
+        const cacheFile = Gio.File.new_for_path(path);
+        assert(cacheFile.query_exists(null), 'cache file written');
+        const again = lib.loadThumbnail(src, 300, 200);
+        assert(again, 'cache read hit');
+    });
+
+    it('re-keys when the source file is modified', () => {
+        const before = lib.thumbnailCachePath(src, 300, 200);
+        const [ok, bytes] = solidPixbuf(96, 96).save_to_bufferv('png', [], []);
+        assert(ok, 'png encode');
+        Gio.File.new_for_path(src).replace_contents(
+            bytes, null, false,
+            Gio.FileCreateFlags.REPLACE_DESTINATION, null);
+        const after = lib.thumbnailCachePath(src, 300, 200);
+        assert(before, 'has before path');
+        assert(after, 'has after path');
+        eq(before === after, false, 'mtime/size key changed');
+        assert(Gio.File.new_for_path(before).query_exists(null), 'old entry intact');
+    });
+
+    it('returns null for a missing source', () => {
+        eq(lib.loadThumbnail(`${TMP}/nope.png`, 300, 200), null);
     });
 });
 

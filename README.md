@@ -19,6 +19,12 @@ it picks `picture-uri` or `picture-uri-dark` to match your light/dark mode).
   and the keyboard shortcut.
 - Subfolder support: with "include subfolders" enabled, images from nested
   folders are listed too.
+- Instant preview while browsing, plus live file watching (adding/removing
+  wallpapers reflects immediately).
+- Scroll support: scroll up = previous, scroll down = next.
+- Disk thumbnail cache: scaled thumbnails are cached in
+  `~/.cache/wallpapi/thumbnails` keyed by file identity, so reopening the
+  picker is instant. (Tests redirect it with `WALLPAPI_CACHE`.)
 
 ## Requirements
 
