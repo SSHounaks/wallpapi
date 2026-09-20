@@ -99,15 +99,12 @@ export function validateFolder(folder) {
 
     const expanded = expandPath(folder.trim());
     const file = Gio.File.new_for_path(expanded);
-    if (!file.query_exists(null) ||
-        !file.query_file_info('standard::type', Gio.FileQueryInfoFlags.NONE, null) === null &&
-        file.query_file_type === Gio.FileType.DIRECTORY) {
+    if (!file.query_exists(null))
         return {valid: false, count: 0, reason: 'not-found'};
-    }
-    if (file.query_file_info('standard::type', Gio.FileQueryInfoFlags.NONE, null).get_file_type() !==
-        Gio.FileType.DIRECTORY) {
+    const info = file.query_info(
+        'standard::type', Gio.FileQueryInfoFlags.NONE, null);
+    if (!info || info.get_file_type() !== Gio.FileType.DIRECTORY)
         return {valid: false, count: 0, reason: 'not-found'};
-    }
 
     const count = scanFolder(expanded, false).length;
     if (count === 0)
