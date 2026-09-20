@@ -15,6 +15,12 @@
       <description>Also list image files inside subfolders of the wallpaper folder.</description>
     </key>
 
+    <key name="instant-preview" type="b">
+      <default>true</default>
+      <summary>Instant preview</summary>
+      <description>Apply the focused wallpaper live while browsing the picker; the previous wallpaper is restored when the picker closes without choosing.</description>
+    </key>
+
     <key name="show-picker" type="as">
       <default>['&lt;Super&gt;&lt;Shift&gt;w']</default>
       <summary>Show the wallpaper picker</summary>

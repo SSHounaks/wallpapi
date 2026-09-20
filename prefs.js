@@ -104,6 +104,15 @@ export default class WallpapiExtensionPreferences extends ExtensionPreferences {
             settings.set_boolean('include-subfolders', subfoldersRow.active));
         optionsGroup.add(subfoldersRow);
 
+        const previewRow = new Adw.SwitchRow({
+            title: 'Instant preview',
+            subtitle: 'Apply the focused wallpaper live while browsing; the previous wallpaper is restored when the picker closes without choosing.',
+        });
+        previewRow.active = settings.get_boolean('instant-preview');
+        previewRow.connect('notify::active', () =>
+            settings.set_boolean('instant-preview', previewRow.active));
+        optionsGroup.add(previewRow);
+
         const shortcutGroup = new Adw.PreferencesGroup({
             title: 'Keyboard shortcut',
         });

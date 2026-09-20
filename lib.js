@@ -112,17 +112,19 @@ export function validateFolder(folder) {
     return {valid: true, count, reason: 'ok'};
 }
 
-export function setWallpaper(path, notify) {
+export function setWallpaper(path, opts = {}) {
     if (!Gio.File.new_for_path(path).query_exists(null))
         return false;
 
+    const {commit = true} = opts;
     const uri = `file://${path}`;
     const bg = new Gio.Settings({schema_id: 'org.gnome.desktop.background'});
     const key = colorSchemeDark() ? 'picture-uri-dark' : 'picture-uri';
     try {
         if (bg.is_writable(key))
             bg.set_string(key, uri);
-        Gio.Settings.sync();
+        if (commit)
+            Gio.Settings.sync();
         return true;
     } catch (e) {
         logError(e);

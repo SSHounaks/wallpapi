@@ -42,6 +42,9 @@ export default class WallpapiExtension extends Extension {
         this._loadQueueSet = new Set();
         this._loadTimerId = 0;
         this._coglContext = null;
+        this._originalWallpaper = null;
+        this._previewDebounceId = 0;
+        this._committed = false;
 
         try {
             this._coglContext = global.stage.context.get_backend().get_cogl_context();
@@ -69,6 +72,7 @@ export default class WallpapiExtension extends Extension {
             this._closeOverlay();
 
         this._stopLoading();
+        this._cancelPreview();
 
         Main.wm.removeKeybinding('show-picker');
 
@@ -191,6 +195,18 @@ export default class WallpapiExtension extends Extension {
         this._grab = Main.pushModal(overlay, {actionMode: Shell.ActionMode.POPUP});
         global.stage.set_key_focus(overlay);
 
+        try {
+            const bg = new Gio.Settings({schema_id: 'org.gnome.desktop.background'});
+            this._originalWallpaper = {
+                light: bg.get_string('picture-uri'),
+                dark: bg.get_string('picture-uri-dark'),
+            };
+        } catch (e) {
+            lib.logError(e);
+            this._originalWallpaper = null;
+        }
+        this._committed = false;
+
         this._rescan();
     }
 
@@ -199,6 +215,22 @@ export default class WallpapiExtension extends Extension {
             return;
 
         this._stopLoading();
+        this._cancelPreview();
+
+        if (!this._committed && this._originalWallpaper) {
+            try {
+                const bg = new Gio.Settings({schema_id: 'org.gnome.desktop.background'});
+                if (bg.is_writable('picture-uri'))
+                    bg.set_string('picture-uri', this._originalWallpaper.light);
+                if (bg.is_writable('picture-uri-dark'))
+                    bg.set_string('picture-uri-dark', this._originalWallpaper.dark);
+                Gio.Settings.sync();
+            } catch (e) {
+                lib.logError(e);
+            }
+        }
+        this._originalWallpaper = null;
+        this._committed = false;
 
         if (this._grab) {
             Main.popModal(this._grab);
@@ -438,9 +470,38 @@ export default class WallpapiExtension extends Extension {
 
         const name = this._items[index].split('/').pop();
         if (this._currentLabel)
-            this._currentLabel.text = name;
+            this._currentLabel.text = this._settings.get_boolean('instant-preview')
+                ? `${name} · preview`
+                : name;
+
+        if (this._settings.get_boolean('instant-preview') && this._originalWallpaper)
+            this._schedulePreview(this._items[index]);
 
         this._requestLoadNearFocus();
+    }
+
+    _schedulePreview(path) {
+        if (this._previewDebounceId) {
+            GLib.source_remove(this._previewDebounceId);
+            this._previewDebounceId = 0;
+        }
+        this._previewDebounceId = GLib.timeout_add(
+            GLib.PRIORITY_DEFAULT, 60, () => {
+                this._previewDebounceId = 0;
+                try {
+                    lib.setWallpaper(path, {commit: false});
+                } catch (e) {
+                    lib.logError(e);
+                }
+                return GLib.SOURCE_REMOVE;
+            });
+    }
+
+    _cancelPreview() {
+        if (this._previewDebounceId) {
+            GLib.source_remove(this._previewDebounceId);
+            this._previewDebounceId = 0;
+        }
     }
 
     _moveFocus(dx) {
@@ -532,7 +593,9 @@ export default class WallpapiExtension extends Extension {
         const path = this._items[index];
         if (!path)
             return;
+        this._cancelPreview();
         this._setWallpaper(path);
+        this._committed = true;
         this._closeOverlay();
     }
 
