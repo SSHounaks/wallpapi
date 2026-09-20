@@ -106,7 +106,8 @@ export default class WallpapiExtensionPreferences extends ExtensionPreferences {
 
         const previewRow = new Adw.SwitchRow({
             title: 'Instant preview',
-            subtitle: 'Apply the focused wallpaper live while browsing; the previous wallpaper is restored when the picker closes without choosing.',
+            subtitle: 'Apply the focused wallpaper live while browsing; the previous '
+                + 'wallpaper is restored when the picker closes without choosing.',
         });
         previewRow.active = settings.get_boolean('instant-preview');
         previewRow.connect('notify::active', () =>

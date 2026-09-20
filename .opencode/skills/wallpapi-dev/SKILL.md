@@ -124,3 +124,16 @@ with `magick -size 1920x1080 gradient:#HEX1-#HEX2 /tmp/opencode/wallpapers/X.png
   actually landed before running the harness.
 - Commit after each verified milestone (repo has no git identity configured at
   global level — `git config user.name`/`user.email` locally if needed).
+
+## Repo tooling (no Node — plain gjs)
+
+- `make check` — lint + unit tests + coverage in one shot, exits non-zero on
+  failure. Individual: `make test`, `make coverage`, `make lint`.
+- Unit tests/coverage must run under `dbus-run-session` (Gio.Settings needs a
+  session bus); the Makefile already wraps them.
+- gjs built-in `--coverage` is unreliable in gjs 1.88 — don't use it; coverage
+  is a Proxy recorder over `lib.js` exports (see scripts/coverage.mjs).
+- `scripts/lint.mjs` = code-smell scan: gjs syntax check on extension.js /
+  lib.js / prefs.js, tabs, trailing whitespace, lines >130, console.log /
+  debugger, TODO/FIXME markers, and undefined-identifier heuristics on the
+  three shipped files. Keep it at 0 errors, 0 warnings.

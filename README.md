@@ -72,6 +72,28 @@ gnome-extensions pack --out-dir=. --extra-source=lib.js .
 Reloading on Wayland requires logging out and back in (or a dev shell:
 `dbus-run-session -- gnome-shell --devkit`).
 
+### Tests, coverage, lint
+
+Dependency-free tooling (plain gjs, no Node):
+
+```sh
+make check        # lint + unit tests + coverage in one go
+make test         # unit tests        (needs a session bus; wrapped in dbus-run-session)
+make coverage     # export-level coverage of lib.js via a Proxy recorder
+make lint         # code-smell scan (syntax, tabs, trailing ws, long lines,
+                   #   console.log/debugger, TODO markers, undefined identifiers)
+```
+
+- Unit tests live in `tests/*.test.mjs` and run under a throwaway
+  `dbus-run-session` so `Gio.Settings`/dconf changes never touch your session.
+- Coverage drives the real test suite through a `Proxy` around `lib.js` and
+  reports per-export line totals, so any new export left untouched fails the
+  check (`exit 1`). Shell-coupled code (`extension.js`, `prefs.js`) is covered
+  by the headless `gnome-shell-test-tool` harness instead (see
+  `.opencode/skills/wallpapi-dev/SKILL.md`); gjs's built-in `--coverage`
+  is unreliable in gjs 1.88 and is not used.
+- `make check` runs everything and exits non-zero on the first failing step.
+
 ## License
 
 MIT License — see [LICENSE](LICENSE). Includes a non-binding courtesy request

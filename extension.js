@@ -45,6 +45,8 @@ export default class WallpapiExtension extends Extension {
         this._originalWallpaper = null;
         this._previewDebounceId = 0;
         this._committed = false;
+        this._fileSubMonitors = [];
+        this._fsDebounceId = 0;
 
         try {
             this._coglContext = global.stage.context.get_backend().get_cogl_context();
@@ -65,6 +67,8 @@ export default class WallpapiExtension extends Extension {
             'changed::folder', this._onFolderChanged.bind(this));
         this._subfoldersChangedId = this._settings.connect(
             'changed::include-subfolders', this._onFolderChanged.bind(this));
+
+        this._setupFileMonitor();
     }
 
     disable() {
@@ -73,6 +77,7 @@ export default class WallpapiExtension extends Extension {
 
         this._stopLoading();
         this._cancelPreview();
+        this._teardownFileMonitor();
 
         Main.wm.removeKeybinding('show-picker');
 
@@ -108,8 +113,81 @@ export default class WallpapiExtension extends Extension {
     }
 
     _onFolderChanged() {
+        this._setupFileMonitor();
         if (this._overlay)
             this._rescan();
+    }
+
+    _setupFileMonitor() {
+        this._teardownFileMonitor();
+
+        const folder = this._settings.get_string('folder').trim();
+        if (!folder)
+            return;
+
+        const dirs = [lib.expandPath(folder)];
+        if (this._settings.get_boolean('include-subfolders')) {
+            try {
+                const seen = new Set(dirs);
+                for (const path of lib.scanFolder(folder, true)) {
+                    const parent = GLib.path_get_dirname(path);
+                    if (!seen.has(parent)) {
+                        seen.add(parent);
+                        dirs.push(parent);
+                    }
+                }
+            } catch (e) {
+                lib.logError(e);
+            }
+        }
+
+        for (const dir of dirs) {
+            try {
+                const mon = Gio.File.new_for_path(dir).monitor_directory(
+                    Gio.FileMonitorFlags.NONE, null);
+                if (!mon)
+                    continue;
+                mon.connect('changed', (m, file, other, ev) => {
+                    if (ev === Gio.FileMonitorEvent.CHANGED ||
+                        ev === Gio.FileMonitorEvent.ATTRIBUTE_CHANGED ||
+                        ev === Gio.FileMonitorEvent.PRE_UNMOUNT ||
+                        ev === Gio.FileMonitorEvent.UNMOUNTED)
+                        return;
+                    this._scheduleFolderRefresh();
+                });
+                this._fileSubMonitors.push(mon);
+            } catch (e) {
+                lib.logError(e);
+            }
+        }
+    }
+
+    _scheduleFolderRefresh() {
+        if (this._fsDebounceId) {
+            GLib.source_remove(this._fsDebounceId);
+            this._fsDebounceId = 0;
+        }
+        this._fsDebounceId = GLib.timeout_add(
+            GLib.PRIORITY_DEFAULT, 300, () => {
+                this._fsDebounceId = 0;
+                if (this._overlay)
+                    this._rescan();
+                return GLib.SOURCE_REMOVE;
+            });
+    }
+
+    _teardownFileMonitor() {
+        for (const mon of this._fileSubMonitors) {
+            try {
+                mon.cancel();
+            } catch (e) {
+            }
+        }
+        this._fileSubMonitors = [];
+        if (this._fsDebounceId) {
+            GLib.source_remove(this._fsDebounceId);
+            this._fsDebounceId = 0;
+        }
     }
 
     _folderEmpty() {
