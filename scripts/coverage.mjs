@@ -6,7 +6,7 @@ import {lib, printCoverage} from '../tests/coverage.mjs';
 for (const t of tests)
     t.fn();
 
-lib.IMAGE_EXTENSIONS.length;
+void lib.IMAGE_EXTENSIONS.length;
 lib.currentWallpaperPath();
 lib.logError('coverage: exercising error path');
 

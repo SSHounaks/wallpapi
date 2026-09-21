@@ -46,3 +46,32 @@
   font-size: 14pt;
   color: rgba(255, 255, 255, 0.75);
 }
+
+.wallpapi-theme-character-select {
+  background-color: rgba(18, 10, 36, 0.72);
+}
+
+.wallpapi-theme-polaroid {
+  background-color: rgba(20, 16, 12, 0.7);
+}
+
+.wallpapi-theme-comic-strip {
+  background-color: rgba(12, 10, 12, 0.72);
+}
+
+.wallpapi-caption {
+  font-size: 10pt;
+  color: rgba(255, 255, 255, 0.82);
+  text-align: center;
+}
+
+.wallpapi-theme-polaroid .wallpapi-caption {
+  font-size: 9pt;
+  color: #3b3833;
+  text-shadow: none;
+}
+
+.wallpapi-theme-comic-strip .wallpapi-caption {
+  font-size: 9pt;
+  color: rgba(255, 255, 255, 0.6);
+}

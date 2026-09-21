@@ -26,7 +26,7 @@ export function colorSchemeDark() {
     try {
         const settings = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'});
         return settings.get_enum('color-scheme') === 1;
-    } catch (e) {
+    } catch (unused) {
         return false;
     }
 }
@@ -41,7 +41,7 @@ export function currentWallpaperPath() {
             path = decodeURIComponent(path.slice('file://'.length));
         const file = Gio.File.new_for_path(path);
         return file.query_exists(null) ? path : null;
-    } catch (e) {
+    } catch (unused) {
         return null;
     }
 }
@@ -59,7 +59,7 @@ export function scanFolder(folder, recursive) {
             enumerator = file.enumerate_children(
                 'standard::name,standard::type',
                 Gio.FileQueryInfoFlags.NONE, null);
-        } catch (e) {
+        } catch (unused) {
             continue;
         }
 
@@ -137,8 +137,9 @@ export function thumbnailCachePath(srcPath, maxW, maxH) {
         }
         const digest = (hash >>> 0).toString(16).padStart(8, '0');
         return GLib.build_filenamev([
-            thumbnailCacheDir(), `${digest}.img`]);
-    } catch (e) {
+            thumbnailCacheDir(), `${digest}.img`,
+        ]);
+    } catch (unused) {
         return null;
     }
 }
@@ -152,7 +153,7 @@ export function loadThumbnail(srcPath, maxW, maxH) {
                 if (hit)
                     return hit;
             }
-        } catch (e) {
+        } catch (unused) {
         }
     }
 
@@ -171,13 +172,28 @@ export function loadThumbnail(srcPath, maxW, maxH) {
                 if (ok)
                     GLib.file_set_contents(wanted, data);
             }
-        } catch (e) {
+        } catch (unused) {
         }
         return pixbuf;
     } catch (e) {
         logError(e);
         return null;
     }
+}
+
+export function framePixbuf(source, pad, color, padBottom = null) {
+    const bottom = padBottom ?? pad;
+    const w = source.get_width();
+    const h = source.get_height();
+    const outW = w + pad * 2;
+    const outH = h + pad + bottom;
+    const [r, g, b, a] = color;
+    const rgb = r * 16777216 + g * 65536 + b * 256 + (a & 0xff);
+    const dest = GdkPixbuf.Pixbuf.new(
+        GdkPixbuf.Colorspace.RGB, true, 8, outW, outH);
+    dest.fill(rgb);
+    source.copy_area(0, 0, w, h, dest, pad, pad);
+    return dest;
 }
 
 export function setWallpaper(path, opts = {}) {
@@ -208,7 +224,7 @@ export function logError(e) {
             const size = file.query_info('standard::size', Gio.FileQueryInfoFlags.NONE, null).get_size();
             if (size > LOG_LIMIT)
                 file.replace(null, false, Gio.FileCreateFlags.NONE, null).close(null);
-        } catch (err) {
+        } catch (unused) {
         }
 
         let stream;
@@ -221,7 +237,7 @@ export function logError(e) {
         const bytes = new TextEncoder().encode(`[${timestamp}] Wallpapi: ${message}\n`);
         stream.write_all(bytes, null);
         stream.close(null);
-    } catch (err) {
+    } catch (unused) {
     }
     console.warn(`Wallpapi: ${message}`);
 }
@@ -235,11 +251,11 @@ export function shearPixbuf(source, skew, border = null) {
         GdkPixbuf.Colorspace.RGB, true, 8, outW, h);
 
     const cx = outW / 2;
-    const x0 = (y) => Math.round(cx - w / 2 + skew * (y - h / 2));
+    const x0 = y => Math.round(cx - w / 2 + skew * (y - h / 2));
 
-    for (let y = 0; y < h; y++) {
+    for (let y = 0; y < h; y++)
         source.copy_area(0, y, w, 1, dest, x0(y), y);
-    }
+
 
     if (border !== null) {
         const [br, bg, bb, ba] = border;

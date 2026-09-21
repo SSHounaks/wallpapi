@@ -5,8 +5,8 @@
   "shell-version": [
     "50"
   ],
-  "version-name": "1.1.0",
+  "version-name": "1.2.0",
   "settings-schema": "org.gnome.shell.extensions.wallpapi",
   "url": "https://github.com/SSHounaks/wallpapi",
-  "version": 2
+  "version": 4
 }

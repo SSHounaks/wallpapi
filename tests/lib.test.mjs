@@ -14,7 +14,7 @@ function writeTmp(rel) {
     const f = Gio.File.new_for_path(`${TMP}/${rel}`);
     try {
         f.get_parent().make_directory_with_parents(null);
-    } catch (e) {
+    } catch (unused) {
     }
     f.replace_contents(X, null, false,
         Gio.FileCreateFlags.REPLACE_DESTINATION, null);
@@ -107,7 +107,6 @@ describe('setWallpaper commit contract', () => {
         ui.set_enum('color-scheme', 0);
         const key = ui.get_enum('color-scheme') === 1 ? 'picture-uri-dark' : 'picture-uri';
         const base = `file://${TMP}/base.png`;
-        const committed = `file://${TMP}/beta.png`;
         writeTmp('base.png');
 
         bg.set_string(key, base);
@@ -128,7 +127,7 @@ describe('setWallpaper commit contract', () => {
 
             assert(lib.setWallpaper(`${TMP}/beta.png`, {commit: true}), 'commit return');
             eq(syncCount, 1, 'commit must call Gio.Settings.sync() exactly once');
-            eq((new Gio.Settings({schema_id: 'org.gnome.desktop.background'}))
+            eq(new Gio.Settings({schema_id: 'org.gnome.desktop.background'})
                 .get_string(key).endsWith('beta.png'), true, 'value set');
 
             bg.set_string(key, base);
@@ -193,6 +192,42 @@ describe('a missing wallpaper is rejected', () => {
     it('returns false for a nonexistent file', () => {
         eq(lib.setWallpaper(`${TMP}/missing.png`, {commit: false}), false);
         eq(lib.setWallpaper(`${TMP}/missing.png`, {commit: true}), false);
+    });
+});
+
+describe('framePixbuf', () => {
+    const w = 30;
+    const h = 20;
+    const pad = 6;
+    const paper = [240, 240, 236, 255];
+    const framed = lib.framePixbuf(solidPixbuf(w, h), pad, paper);
+
+    it('grows by 2*pad each side', () => {
+        eq(framed.get_width(), w + 2 * pad, 'width');
+        eq(framed.get_height(), h + 2 * pad, 'height');
+    });
+
+    it('keeps source pixels centered', () => {
+        assert(px(framed, pad + w / 2, pad + h / 2).every((v, i) => v === SRC[i]),
+            'center kept');
+    });
+
+    it('supports an asymmetric bottom pad', () => {
+        const padFramed = lib.framePixbuf(solidPixbuf(10, 10), 3,
+            paper, 8);
+        eq(padFramed.get_width(), 16, 'width with pad bottom');
+        eq(padFramed.get_height(), 10 + 3 + 8, 'height with padded bottom');
+        assert(px(padFramed, 1, 12)[3] === 255 &&
+            px(padFramed, 1, 12) !== undefined, 'bottom strip present');
+    });
+
+
+    it('paints the paper color on the margin', () => {
+        assert(px(framed, 0, 0).every((v, i) => v === paper[i]), 'corner paper');
+        assert(px(framed, w + 2 * pad - 1, h + 2 * pad - 1)
+            .every((v, i) => v === paper[i]), 'opposite corner paper');
+        assert(px(framed, pad + w + 5, pad / 2).every((v, i) => v === paper[i]),
+            'left/right margin paper');
     });
 });
 

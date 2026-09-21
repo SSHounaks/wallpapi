@@ -98,6 +98,6 @@ export function printCoverage() {
     }
     const pct = total ? Math.round(100 * hit / total) : 0;
     print('-'.repeat(44));
-    print(`${('TOTAL').padEnd(26)}${String(total).padStart(6)}${String(pct + '%').padStart(10)}`);
+    print(`${'TOTAL'.padEnd(26)}${String(total).padStart(6)}${String(`${pct}%`).padStart(10)}`);
     return pct;
 }

@@ -21,10 +21,40 @@
       <description>Apply the focused wallpaper live while browsing the picker; the previous wallpaper is restored when the picker closes without choosing.</description>
     </key>
 
+    <key name="picker-theme" type="i">
+      <default>0</default>
+      <summary>Picker theme</summary>
+      <description>Presentation used by the wallpaper picker: 0 = Omarchy carousel, 1 = Character Select roster, 2 = Polaroid vintage, 3 = Comic Strip.</description>
+    </key>
+
+    <key name="picker-polaroid-cols" type="i">
+      <default>6</default>
+      <range min="2" max="10"/>
+      <summary>Polaroid columns per row</summary>
+      <description>How many polaroids fit in one row before the board slides horizontally.</description>
+    </key>
+
+    <key name="picker-polaroid-rows" type="i">
+      <default>2</default>
+      <range min="1" max="4"/>
+      <summary>Polaroid rows</summary>
+      <description>How many polaroid rows are visible on screen at once.</description>
+    </key>
+
     <key name="show-picker" type="as">
       <default>['&lt;Super&gt;&lt;Shift&gt;w']</default>
       <summary>Show the wallpaper picker</summary>
       <description>Keyboard shortcut that opens the full-screen wallpaper picker.</description>
+    </key>
+    <key name="show-tray-icon" type="b">
+      <default>true</default>
+      <summary>Show icon in the top panel</summary>
+      <description>Whether the tray icon that opens the wallpaper picker is shown in the top panel.</description>
+    </key>
+    <key name="show-file-name" type="b">
+      <default>true</default>
+      <summary>Show file names on image items</summary>
+      <description>When enabled, the file name is shown as a caption below each image item in the picker themes that place items in a row or grid (non-omarchy). The top header never shows the file name or instructions regardless of this setting.</description>
     </key>
   </schema>
 </schemalist>

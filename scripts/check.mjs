@@ -22,7 +22,7 @@ function run(argv) {
     GLib.child_watch_add(GLib.PRIORITY_DEFAULT, pid, (p, st) => {
         try {
             GLib.spawn_check_exit_status(st);
-        } catch (e) {
+        } catch (unused) {
             good = false;
         }
         loop.quit();

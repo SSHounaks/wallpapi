@@ -4,7 +4,7 @@ import GLib from 'gi://GLib';
 const ROOT = GLib.path_get_dirname(
     decodeURIComponent(import.meta.url.replace(/^file:\/\//, '').split('?')[0])).slice(0, -8);
 
-const TARGETS = ['extension.js', 'lib.js', 'prefs.js', 'tests', 'scripts'];
+const TARGETS = ['extension.js', 'lib.js', 'prefs.js', 'themes.js', 'tests', 'scripts'];
 const MAX_LINE = 130;
 
 const BUILTINS = new Set([
@@ -28,7 +28,7 @@ function *walkFiles(base) {
         const p = `${base}/${n}`;
         const type = GLib.file_test(p, GLib.FileTest.IS_DIR) ? 'dir' : 'file';
         if (type === 'dir')
-            yield * walkFiles(p);
+            yield* walkFiles(p);
         else if (n.endsWith('.js') || n.endsWith('.mjs'))
             yield p;
     }
@@ -51,27 +51,33 @@ function declared(code) {
             let t = item.trim().split(/\s+as\s+/)[0];
             if (t.includes(':'))
                 t = t.split(':')[1];
-            t = t.replace(/[=\[\]{}]|^\.+|\s.*$/, '').trim();
+            t = t.replace(/[=[\]{}]|^\.+|\s.*$/, '').trim();
             if (/^[\w$]+$/.test(t))
                 names.add(t);
         }
     };
     let m;
     const re = /import\s+(?:\* as\s+|(\w+)\s*(?:,\s*)?)?(?:\{([^}]*)\}|(\w+))(?:[^;]*?from\s+)?/g;
-    while ((m = re.exec(code)))
-        for (const g of [m[1], m[2], m[3]])
+    while ((m = re.exec(code))) {
+        for (const g of [m[1], m[2], m[3]]) {
             if (g)
                 push(g);
+        }
+    }
     const decl = /(?:const|let|var|function|class)\s+\*?\s*(?:([\w$]+)|[{[]([^}\]]+))/g;
-    while ((m = decl.exec(code)))
-        for (const g of [m[1], m[2]])
+    while ((m = decl.exec(code))) {
+        for (const g of [m[1], m[2]]) {
             if (g)
                 push(g);
-    const params = /\(([^()]*)\)\s*=>|\bcatch\s*\(([^()]*)\)|function\s+[\w$]*\s*\(([^()]*)\)/g;
-    while ((m = params.exec(code)))
-        for (const g of [m[1], m[2], m[3]])
+        }
+    }
+    const params = /\(([^()]*)\)\s*=>|\b([a-zA-Z_$][\w$]*)\s*=>|\bcatch\s*\(([^()]*)\)|function\s+[\w$]*\s*\(([^()]*)\)/g;
+    while ((m = params.exec(code))) {
+        for (const g of [m[1], m[2], m[3], m[4]]) {
             if (g)
                 push(g);
+        }
+    }
     const methods = /(?:^|\n)\s*([\w$]+)\s*\(([^()]*)\)\s*\{/g;
     while ((m = methods.exec(code))) {
         if (m[1] !== 'for' && m[1] !== 'if' && m[1] !== 'while' && m[1] !== 'switch')
@@ -99,20 +105,31 @@ for (const file of files) {
     const names = declared(strip(code));
     let bad = [];
 
-    lines.forEach((ln, i) => {
-        if (/\t/.test(ln))
-            errors++, bad.push(`L${i + 1}: tab character`);
-        if (/[ \t]+$/.test(ln) && ln.trim())
-            errors++, bad.push(`L${i + 1}: trailing whitespace`);
-        if (ln.length > MAX_LINE)
-            warnings++, bad.push(`L${i + 1}: ${ln.length} chars > ${MAX_LINE}`);
-        if (rel !== 'scripts/lint.mjs') {
-            if (/console\.log\(|debugger\b/.test(ln))
-                errors++, bad.push(`L${i + 1}: console.log/debugger`);
-            if (/(?:^|[/*])\s*(TODO|FIXME|XXX|HACK)[:\s]/i.test(ln))
-                errors++, bad.push(`L${i + 1}: TODO/FIXME/XXX marker`);
+    for (let i = 0; i < lines.length; i++) {
+        const ln = lines[i];
+        if (/\t/.test(ln)) {
+            errors++;
+            bad.push(`L${i + 1}: tab character`);
         }
-    });
+        if (/[ \t]+$/.test(ln) && ln.trim()) {
+            errors++;
+            bad.push(`L${i + 1}: trailing whitespace`);
+        }
+        if (ln.length > MAX_LINE) {
+            warnings++;
+            bad.push(`L${i + 1}: ${ln.length} chars > ${MAX_LINE}`);
+        }
+        if (rel !== 'scripts/lint.mjs') {
+            if (/console\.log\(|debugger\b/.test(ln)) {
+                errors++;
+                bad.push(`L${i + 1}: console.log/debugger`);
+            }
+            if (/(?:^|[/*])\s*(TODO|FIXME|XXX|HACK)[:\s]/i.test(ln)) {
+                errors++;
+                bad.push(`L${i + 1}: TODO/FIXME/XXX marker`);
+            }
+        }
+    }
 
     const KEYWORDS = new Set([
         'const', 'let', 'var', 'function', 'class', 'return', 'if', 'else',
@@ -124,38 +141,39 @@ for (const file of files) {
     ]);
     const stripped = strip(code);
     const bare = new Set();
-    if (['extension.js', 'lib.js', 'prefs.js'].includes(rel)) {
-    const re = /[A-Za-z_$][\w$]*/g;
-    let m;
-    while ((m = re.exec(stripped)) !== null) {
-        const tok = m[0];
-        const before = m.index > 0 ? stripped[m.index - 1] : '';
-        const after = m.index + tok.length < stripped.length ? stripped[m.index + tok.length] : '';
-        if (before === '.' || before === '?')
-            continue;
-        if (/[0-9_]/.test(before) || /[0-9_]/.test(tok[0]))
-            continue;
-        if (after === ':')
-            continue;
-        if (KEYWORDS.has(tok) || BUILTINS.has(tok) || names.has(tok))
-            continue;
-        if (tok.length < 3 || !/^[A-Za-z]/.test(tok))
-            continue;
-        bare.add(tok);
-    }
-
+    if (['extension.js', 'lib.js', 'prefs.js', 'themes.js'].includes(rel)) {
+        const re = /[A-Za-z_$][\w$]*/g;
+        let m;
+        while ((m = re.exec(stripped)) !== null) {
+            const tok = m[0];
+            const before = m.index > 0 ? stripped[m.index - 1] : '';
+            const after = m.index + tok.length < stripped.length ? stripped[m.index + tok.length] : '';
+            if (before === '.' || before === '?')
+                continue;
+            if (/[0-9_]/.test(before) || /[0-9_]/.test(tok[0]))
+                continue;
+            if (after === ':')
+                continue;
+            if (KEYWORDS.has(tok) || BUILTINS.has(tok) || names.has(tok))
+                continue;
+            if (tok.length < 3 || !/^[A-Za-z]/.test(tok))
+                continue;
+            bare.add(tok);
+        }
     }
     if (bad.length || bare.size) {
         print(`\n\x1b[1m${rel}\x1b[0m`);
         for (const b of bad)
             print(`  \x1b[31merror\x1b[0m   ${b}`);
         const suspicious = [...bare].slice(0, 12);
-        for (const s of suspicious)
-            warnings++, print(`  \x1b[33mwarn\x1b[0m    possible undefined identifier: '${s}'`);
+        for (const s of suspicious) {
+            warnings++;
+            print(`  \x1b[33mwarn\x1b[0m    possible undefined identifier: '${s}'`);
+        }
     }
 
-    if (['extension.js', 'lib.js', 'prefs.js'].includes(rel)) {
-        const [res, , errs] = GLib.spawn_sync(
+    if (['extension.js', 'lib.js', 'prefs.js', 'themes.js'].includes(rel)) {
+        const [, , errs] = GLib.spawn_sync(
             ROOT, ['gjs', '-m', file], null,
             GLib.SpawnFlags.SEARCH_PATH, null);
         const errText = new TextDecoder().decode(errs ?? []);
@@ -163,7 +181,7 @@ for (const file of files) {
             errors++;
             print(`\n\x1b[1m${rel}\x1b[0m`);
             const snippet = errText.split('\n').slice(0, 3)
-                .map(l => '        ' + l).join('\n');
+                .map(l => `        ${l}`).join('\n');
             print(`  \x1b[31merror\x1b[0m   does not compile:\n${snippet}`);
         }
     }
